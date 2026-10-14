@@ -1,5 +1,10 @@
 import { configure } from '@zip.js/zip.js'
-import { acceptsPassword, openArchive, unlockArchive, wrongPassword } from './lib/archive'
+import {
+  acceptsPassword,
+  openArchive,
+  unlockArchive,
+  wrongPassword,
+} from './lib/archive'
 import { candidates, countCandidates } from './lib/candidates'
 import type { WorkerRequest, WorkerResponse } from './lib/protocol'
 
@@ -17,14 +22,22 @@ self.onmessage = async (event: MessageEvent<WorkerRequest>) => {
       send({ type: 'ready', info: archive.info })
       return
     }
-    if (!archive.encrypted.length) throw new Error('This ZIP is already unlocked. Download the original from the archive card.')
+    if (!archive.encrypted.length)
+      throw new Error(
+        'This ZIP is already unlocked. Download the original from the archive card.',
+      )
     const total = countCandidates(request.config)
     const started = performance.now()
     let attempted = 0
     let lastUpdate = 0
     const progress = () => {
       const elapsed = (performance.now() - started) / 1000
-      return { attempted, total, elapsed, rate: attempted / Math.max(elapsed, 0.001) }
+      return {
+        attempted,
+        total,
+        elapsed,
+        rate: attempted / Math.max(elapsed, 0.001),
+      }
     }
     for (const password of candidates(request.config)) {
       attempted++
@@ -46,7 +59,13 @@ self.onmessage = async (event: MessageEvent<WorkerRequest>) => {
     }
     send({ type: 'exhausted', ...progress() })
   } catch (error) {
-    send({ type: 'error', message: error instanceof Error ? error.message : 'Unable to read this ZIP. It may be damaged or unsupported.' })
+    send({
+      type: 'error',
+      message:
+        error instanceof Error
+          ? error.message
+          : 'Unable to read this ZIP. It may be damaged or unsupported.',
+    })
   } finally {
     await archive?.reader.close()
     busy = false
