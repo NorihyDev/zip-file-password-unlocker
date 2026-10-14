@@ -38,7 +38,9 @@ import {
   countCandidates,
   DEFAULT_CONFIG,
   DEFAULT_WORDS,
+  MAX_PASSWORD_LENGTH,
 } from './lib/candidates'
+import { formatCount, progressPercent } from './lib/format'
 import type { Method, SearchConfig } from './lib/candidates'
 import type { ArchiveInfo } from './lib/archive'
 import type { Progress, WorkerResponse } from './lib/protocol'
@@ -91,8 +93,11 @@ const METHODS: {
     icon: KeyRound,
   },
 ]
-const ZERO: Progress = { attempted: 0, total: 0, elapsed: 0, rate: 0 }
-const number = (n: number) => new Intl.NumberFormat('en').format(Math.round(n))
+const ZERO: Progress = { attempted: 0n, total: 0n, elapsed: 0, rate: 0 }
+const number = (n: number | bigint) =>
+  typeof n === 'bigint'
+    ? formatCount(n)
+    : new Intl.NumberFormat('en').format(Math.round(n))
 const bytes = (n: number) =>
   n < 1024 * 1024
     ? `${(n / 1024).toFixed(1)} KB`
@@ -135,7 +140,7 @@ export default function App() {
     try {
       return { total: countCandidates(config), error: '' }
     } catch (error) {
-      return { total: 0, error: (error as Error).message }
+      return { total: 0n, error: (error as Error).message }
     }
   }, [config])
   useEffect(() => () => worker.current?.terminate(), [])
@@ -292,9 +297,7 @@ export default function App() {
     }
   }
 
-  const percentage = progress.total
-    ? Math.min(100, (progress.attempted / progress.total) * 100)
-    : 0
+  const percentage = progressPercent(progress.attempted, progress.total)
   const statusLabel: Record<Status, string> = {
     idle: info ? 'Ready when you are' : 'Waiting for your ZIP',
     inspecting: 'Reading archive',
@@ -771,7 +774,7 @@ export default function App() {
                               id="min-length"
                               type="number"
                               min={1}
-                              max={12}
+                              max={MAX_PASSWORD_LENGTH}
                               value={config.minLength}
                               onChange={(event) =>
                                 update({
@@ -786,7 +789,7 @@ export default function App() {
                               id="max-length"
                               type="number"
                               min={1}
-                              max={12}
+                              max={MAX_PASSWORD_LENGTH}
                               value={config.maxLength}
                               onChange={(event) =>
                                 update({
@@ -798,7 +801,8 @@ export default function App() {
                         </div>
                         <p className="field-note">
                           Shorter passwords first. A small character set makes a
-                          big difference.
+                          big difference. Lengths from 1 to{' '}
+                          {MAX_PASSWORD_LENGTH} are supported.
                         </p>
                       </>
                     )}
@@ -864,10 +868,22 @@ export default function App() {
                     {estimate.error}
                   </p>
                 )}
+                {!estimate.error && estimate.total > 5_000_000n && (
+                  <p className="search-notice" role="note">
+                    Large search. Recovery is enabled, but may take a very long
+                    time. You can stop it at any point.
+                  </p>
+                )}
                 <div className="search-footer">
                   <div>
                     <span className="subtle">SEARCH SPACE</span>
-                    <strong>
+                    <strong
+                      title={
+                        !estimate.error
+                          ? `${estimate.total.toLocaleString('en')} candidates`
+                          : undefined
+                      }
+                    >
                       {estimate.error
                         ? 'Adjust settings'
                         : `${number(estimate.total)} candidates`}
@@ -875,7 +891,7 @@ export default function App() {
                   </div>
                   <span>
                     <Gauge size={14} />
-                    Up to 5M per search
+                    No candidate limit
                   </span>
                 </div>
               </section>
@@ -948,7 +964,7 @@ export default function App() {
                     {status === 'found' ? 'Match found' : 'Search progress'}
                   </span>
                   <strong>
-                    {percentage > 0 && percentage < 0.1
+                    {progress.attempted > 0n && percentage < 0.1
                       ? '<0.1'
                       : percentage.toFixed(1)}
                     %
@@ -1135,9 +1151,11 @@ export default function App() {
             <p>
               Files, wordlists and passwords stay in memory on your device.
               Nothing is saved between page reloads. Limits: 100 MB ZIP, 200 MB
-              expanded, 2,000 entries and 5 million candidates. Searches run on
-              one browser worker and can take a long time, especially with AES.
-              Keep the tab open. Archives must use one password for all files.
+              expanded and 2,000 entries. There is no candidate limit.
+              Brute-force lengths from 1 to {MAX_PASSWORD_LENGTH} and custom
+              characters are supported. Searches run on one browser worker and
+              can take a long time, especially with AES. Keep the tab open.
+              Archives must use one password for all files.
             </p>
           </div>
           <button

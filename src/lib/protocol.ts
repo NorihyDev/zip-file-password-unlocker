@@ -5,8 +5,8 @@ export type WorkerRequest =
   | { type: 'inspect'; file: File }
   | { type: 'start'; file: File; config: SearchConfig }
 export type Progress = {
-  attempted: number
-  total: number
+  attempted: bigint
+  total: bigint
   elapsed: number
   rate: number
 }

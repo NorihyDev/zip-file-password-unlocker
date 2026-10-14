@@ -12,8 +12,10 @@ import {
   candidates,
   countCandidates,
   DEFAULT_CONFIG,
+  CHARSETS,
   parseWords,
 } from '../src/lib/candidates'
+import { formatCount, progressPercent } from '../src/lib/format'
 import { acceptsPassword, openArchive, unlockArchive } from '../src/lib/archive'
 
 configure({ useWebWorkers: false })
@@ -34,7 +36,7 @@ describe('candidate generation', () => {
       maxLength: 2,
     }
     expect([...candidates(config)]).toEqual(['a', 'b', 'aa', 'ab', 'ba', 'bb'])
-    expect(countCandidates(config)).toBe(6)
+    expect(countCandidates(config)).toBe(6n)
   })
   it('expands masks and literal question marks', () => {
     const config = {
@@ -59,17 +61,9 @@ describe('candidate generation', () => {
     const list = [...candidates(config)]
     expect(list).toContain('Zip07')
     expect(list).toContain('ZIP')
-    expect(list.length).toBe(countCandidates(config))
+    expect(BigInt(list.length)).toBe(countCandidates(config))
   })
-  it('rejects excessive searches and invalid bounds before enumeration', () => {
-    expect(() =>
-      countCandidates({
-        ...DEFAULT_CONFIG,
-        method: 'brute',
-        charset: 'abcdefghijklmnopqrstuvwxyz',
-        maxLength: 12,
-      }),
-    ).toThrow('5 million')
+  it('rejects invalid bounds before enumeration', () => {
     expect(() =>
       countCandidates({
         ...DEFAULT_CONFIG,
@@ -81,6 +75,65 @@ describe('candidate generation', () => {
     expect([
       ...candidates({ ...DEFAULT_CONFIG, method: 'known', password: '' }),
     ]).toEqual([''])
+  })
+  it('counts huge searches exactly and generates candidates lazily', () => {
+    const config = {
+      ...DEFAULT_CONFIG,
+      method: 'brute' as const,
+      charset: 'ab',
+      minLength: 60,
+      maxLength: 60,
+    }
+    expect(countCandidates(config)).toBe(2n ** 60n)
+    const search = candidates(config)
+    expect(search.next().value).toBe('a'.repeat(60))
+    expect(search.next().value).toBe('a'.repeat(59) + 'b')
+    search.return(undefined)
+    expect(
+      countCandidates({
+        ...DEFAULT_CONFIG,
+        method: 'mask',
+        mask: '?d'.repeat(32),
+      }),
+    ).toBe(10n ** 32n)
+  })
+  it('supports every printable symbol, long passwords and custom Unicode characters', () => {
+    expect(CHARSETS.symbols).toHaveLength(32)
+    expect(CHARSETS.symbols).toContain('\\')
+    expect(CHARSETS.symbols).toContain('"')
+    expect([
+      ...candidates({
+        ...DEFAULT_CONFIG,
+        method: 'brute',
+        charset: 'a'.repeat(200),
+        minLength: 256,
+        maxLength: 256,
+      }),
+    ]).toEqual(['a'.repeat(256)])
+    const unicode = {
+      ...DEFAULT_CONFIG,
+      method: 'brute' as const,
+      charset: '😀a😀',
+      minLength: 1,
+      maxLength: 2,
+    }
+    expect([...candidates(unicode)]).toEqual([
+      '😀',
+      'a',
+      '😀😀',
+      '😀a',
+      'a😀',
+      'aa',
+    ])
+    expect(countCandidates(unicode)).toBe(6n)
+  })
+  it('formats huge totals and progress without Infinity or precision loss', () => {
+    expect(formatCount(5_000_001n)).toBe('5,000,001')
+    expect(formatCount(10n ** 400n)).toBe('1E400')
+    expect(progressPercent(10n ** 399n, 10n ** 400n)).toBe(10)
+    expect(progressPercent(1n, 3n)).toBeCloseTo(33.3333)
+    expect(progressPercent(0n, 0n)).toBe(0)
+    expect(progressPercent(4n, 3n)).toBe(100)
   })
 })
 

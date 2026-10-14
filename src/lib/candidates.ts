@@ -10,12 +10,14 @@ export type SearchConfig = {
   password: string
 }
 
-export const SEARCH_LIMIT = 5_000_000
+export const MAX_PASSWORD_LENGTH = 256
 export const CHARSETS = {
   digits: '0123456789',
   lower: 'abcdefghijklmnopqrstuvwxyz',
   upper: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
-  symbols: '!@#$%^&*()-_=+[]{};:,.?',
+  symbols: Array.from({ length: 94 }, (_, i) => String.fromCharCode(i + 33))
+    .filter((char) => !/[a-z0-9]/i.test(char))
+    .join(''),
 }
 export const DEFAULT_WORDS =
   'password\npassword123\n123456\nletmein\nwelcome\nsecret\nadmin\nqwerty\nsummer2026\narchive\nbackup\nhello\nzip123'
@@ -89,17 +91,17 @@ function validate(config: SearchConfig) {
   )
     throw new Error('Choose a supported recovery method.')
   if (config.method === 'brute') {
-    if (!config.charset || Array.from(config.charset).length > 100)
-      throw new Error('Select between 1 and 100 unique characters.')
+    if (!config.charset)
+      throw new Error('Select or enter at least one character.')
     if (
-      !Number.isInteger(config.minLength) ||
-      !Number.isInteger(config.maxLength) ||
+      !Number.isSafeInteger(config.minLength) ||
+      !Number.isSafeInteger(config.maxLength) ||
       config.minLength < 1 ||
-      config.maxLength > 12 ||
+      config.maxLength > MAX_PASSWORD_LENGTH ||
       config.maxLength < config.minLength
     )
       throw new Error(
-        'Use lengths from 1 to 12, with the maximum at least the minimum.',
+        `Use lengths from 1 to ${MAX_PASSWORD_LENGTH}, with the maximum at least the minimum.`,
       )
   }
   if (
@@ -113,29 +115,26 @@ function validate(config: SearchConfig) {
     throw new Error('Passwords can be at most 256 characters.')
 }
 
-export function countCandidates(config: SearchConfig): number {
+export function countCandidates(config: SearchConfig): bigint {
   validate(config)
-  let count = 0
-  if (config.method === 'known') count = 1
-  if (config.method === 'dictionary') count = parseWords(config.words).length
+  let count = 0n
+  if (config.method === 'known') count = 1n
+  if (config.method === 'dictionary')
+    count = BigInt(parseWords(config.words).length)
   if (config.method === 'hybrid')
     count =
-      variants(parseWords(config.words)).length *
-      (1 + 10 ** config.suffixDigits)
+      BigInt(variants(parseWords(config.words)).length) *
+      (1n + 10n ** BigInt(config.suffixDigits))
   if (config.method === 'mask')
     count = maskPools(config.mask).reduce(
-      (total, pool) => total * pool.length,
-      1,
+      (total, pool) => total * BigInt(pool.length),
+      1n,
     )
   if (config.method === 'brute') {
-    const length = new Set(Array.from(config.charset)).size
+    const length = BigInt(new Set(Array.from(config.charset)).size)
     for (let i = config.minLength; i <= config.maxLength; i++)
-      count += length ** i
+      count += length ** BigInt(i)
   }
-  if (!Number.isSafeInteger(count) || count > SEARCH_LIMIT)
-    throw new Error(
-      'This search exceeds 5 million candidates. Narrow the length, character set or pattern.',
-    )
   return count
 }
 

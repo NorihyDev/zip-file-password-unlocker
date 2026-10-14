@@ -218,18 +218,28 @@ test('known password can fail then retry successfully', async ({ page }) => {
   await expect(page.getByRole('status')).toHaveText('Password recovered')
 })
 
-test('cancellation terminates search and configuration enforces limits', async ({
+test('large searches stay enabled and cancellation terminates the worker', async ({
   page,
 }) => {
   await page.goto('/')
   await upload(page, 'a-password-not-in-the-search')
   await page.getByRole('radio', { name: /Brute force/ }).click()
+  await page.getByLabel('Lowercase a–z').check()
+  await page.getByLabel('Uppercase A–Z').check()
+  await page.getByLabel('Symbols !@#').check()
   await page.getByLabel('Maximum length').fill('8')
-  await expect(page.getByRole('alert')).toContainText('exceeds 5 million')
+  await expect(page.getByRole('alert')).toHaveCount(0)
+  await expect(page.getByRole('note')).toContainText('Large search')
   await expect(
     page.getByRole('button', { name: 'Start recovery', exact: true }),
-  ).toBeDisabled()
-  await page.getByLabel('Maximum length').fill('5')
+  ).toBeEnabled()
+  await page.getByLabel('Maximum length').fill('256')
+  await expect(
+    page.getByRole('button', { name: 'Start recovery', exact: true }),
+  ).toBeEnabled()
+  await expect(page.locator('.search-footer strong')).not.toContainText(
+    'Infinity',
+  )
   await page
     .getByRole('button', { name: 'Start recovery', exact: true })
     .click()
@@ -237,10 +247,56 @@ test('cancellation terminates search and configuration enforces limits', async (
   await page.getByRole('button', { name: 'Stop recovery' }).click()
   await expect(page.getByRole('status')).toHaveText('Search stopped')
   await expect(page.getByLabel('Maximum length')).toBeEnabled()
+  await page.getByLabel('Minimum length').fill('9')
+  await page.getByLabel('Maximum length').fill('8')
+  await expect(page.getByRole('alert')).toContainText(
+    'maximum at least the minimum',
+  )
+  await expect(
+    page.getByRole('button', { name: 'Start recovery', exact: true }),
+  ).toBeDisabled()
   await page.getByRole('button', { name: 'Remove archive' }).click()
   await expect(
     page.getByRole('heading', { name: 'Drop your ZIP file here' }),
   ).toBeVisible()
+})
+
+test('a custom character set and length above 12 recover a real password', async ({
+  page,
+}) => {
+  await page.goto('/')
+  await upload(page, 'a'.repeat(13))
+  await page.getByRole('radio', { name: /Brute force/ }).click()
+  await page.getByLabel('Custom characters').fill('a')
+  await page.getByLabel('Maximum length').fill('13')
+  await page.getByLabel('Minimum length').fill('13')
+  await page
+    .getByRole('button', { name: 'Start recovery', exact: true })
+    .click()
+  await expect(page.getByRole('status')).toHaveText('Password recovered')
+  await expect(page.locator('.result-box code')).toHaveText('a'.repeat(13))
+})
+
+test('all character presets and a huge search space can recover a real password', async ({
+  page,
+}) => {
+  await page.goto('/')
+  await upload(page, '0')
+  await page.getByRole('radio', { name: /Brute force/ }).click()
+  await page.getByLabel('Lowercase a–z').check()
+  await page.getByLabel('Uppercase A–Z').check()
+  await page.getByLabel('Symbols !@#').check()
+  await page.getByLabel('Maximum length').fill('256')
+  await page
+    .getByRole('button', { name: 'Start recovery', exact: true })
+    .click()
+  await expect(page.getByRole('status')).toHaveText('Password recovered')
+  await expect(page.locator('.result-box code')).toHaveText('0')
+  await expect(page.locator('.progress-label strong')).toHaveText('<0.1%')
+  await expect(page.getByRole('progressbar')).toHaveAttribute(
+    'aria-valuenow',
+    '0',
+  )
 })
 
 test('rejects invalid uploads with a useful message', async ({ page }) => {

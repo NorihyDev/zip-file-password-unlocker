@@ -7,7 +7,7 @@ A fresh start for locked files. A modern, private ZIP password recovery app buil
 ## Features
 
 - **Dictionary:** edit a wordlist or import a UTF-8 `.txt` file. Duplicates and blank lines are removed; password whitespace is preserved.
-- **Brute force:** configurable character sets and length bounds; candidates are generated lazily, shortest first.
+- **Brute force:** combine numbers, lowercase, uppercase and all printable ASCII symbols, or enter custom characters (including Unicode). Password lengths of 1–256 characters are supported. Candidates are generated lazily, shortest first, with no candidate-count cap.
 - **Hybrid:** original, lowercase, uppercase and capitalized words, followed by fixed-width numeric suffixes.
 - **Pattern:** combine remembered text with `?d` digits, `?l` lowercase, `?u` uppercase, `?s` symbols, or `??` for a literal question mark. For example, `summer?d?d` tries `summer00` through `summer99`.
 - **Known password:** remove protection with a password you already know.
@@ -54,10 +54,12 @@ ZIPs, dictionaries, candidate passwords and recovered contents are held in brows
 | Input ZIP                       | 100 MiB                     |
 | Total expanded content          | 200 MiB                     |
 | Archive entries                 | 2,000                       |
-| Candidates per search           | 5,000,000                   |
+| Candidates per search           | No count cap                |
 | Dictionary import               | 5 MB / 100,000 unique words |
-| Password length for brute force | 1–12 characters             |
+| Password length for brute force | 1–256 characters            |
 | Hybrid numeric suffix           | 1–3 digits                  |
+
+Search spaces and attempt counters use exact integers, including counts larger than JavaScript's normal numeric range. Very large counts use scientific notation in the interface; hover over the search-space total for the full count. Large searches show an informational note and remain enabled. Stop recovery at any time; the app does not require approval or impose a candidate-count cutoff.
 
 The app performs a **single-worker CPU search**. It is suitable for remembered patterns, likely passwords and short search spaces. It does not guarantee recovery or bypass encryption. Long, random passwords can be impractical, especially with AES. There is no GPU acceleration, distributed search, pause/resume, saved sessions or built-in large wordlist. RAR, 7z, split archives and archives with different passwords per entry are unsupported. Archive formats and metadata unsupported by zip.js may also fail. Files and directory structure are preserved, but the rebuilt ZIP does not promise byte-identical compression or every original metadata field. Rebuilt entries use store mode, so downloads may be larger than the input.
 
@@ -85,7 +87,8 @@ src/App.tsx              Recovery workspace and UI state
 src/styles.css           Responsive design
 src/recovery.worker.ts   Background search and ZIP rebuilding
 src/lib/archive.ts       ZIP validation, verification and unlocking
-src/lib/candidates.ts    Lazy candidate generation and search limits
+src/lib/candidates.ts    Lazy candidate generation and settings validation
+src/lib/format.ts        Large count formatting and overflow-safe progress
 src/lib/protocol.ts      Typed worker messages
 tests/recovery.test.ts   Engine and archive tests
 tests/e2e/app.spec.ts    Desktop and mobile browser tests

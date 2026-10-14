@@ -28,7 +28,7 @@ self.onmessage = async (event: MessageEvent<WorkerRequest>) => {
       )
     const total = countCandidates(request.config)
     const started = performance.now()
-    let attempted = 0
+    let attempted = 0n
     let lastUpdate = 0
     const progress = () => {
       const elapsed = (performance.now() - started) / 1000
@@ -36,7 +36,7 @@ self.onmessage = async (event: MessageEvent<WorkerRequest>) => {
         attempted,
         total,
         elapsed,
-        rate: attempted / Math.max(elapsed, 0.001),
+        rate: Number(attempted) / Math.max(elapsed, 0.001),
       }
     }
     for (const password of candidates(request.config)) {

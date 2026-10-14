@@ -955,6 +955,16 @@ input::placeholder {
   margin-top: 12px;
   line-height: 1.7;
 }
+.search-notice {
+  margin-top: 14px;
+  padding: 11px 13px;
+  border: 1px solid #dce6d2;
+  border-radius: 6px;
+  background: #f5f9ef;
+  color: #536449;
+  font-size: 10px;
+  line-height: 1.8;
+}
 .session-column {
   display: grid;
   gap: 18px;
