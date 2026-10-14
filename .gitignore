@@ -1,0 +1,14 @@
+node_modules/
+dist/
+*.local
+.env
+.env.*
+!.env.example
+test-results/
+playwright-report/
+*.tsbuildinfo
+*.zip
+*.txt
+!robots.txt
+.DS_Store
+.vscode/
